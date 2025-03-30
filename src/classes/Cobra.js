@@ -8,12 +8,16 @@ class Cobra {
     this.fitness = 0;
     this.velocidade = 0;
     this.tempoDeVida = 0;
+    this.totalMovimentos = 0;
+    this.movimentosDisponiveis = 1000;
     this.colidiu = false;
     this.genoma = genoma;
     this.vezesQueSeAlimentou = 0;
     this.comprimento = comprimento;
     this.direcao = createVector(0, 1);
     this.pixelCobra = pixelCobra;
+    this.ultimasPosicoes = [];
+    this.tamanhoUltimasPosicoes = 100;
 
     this.posicaoInicial();
   }
@@ -35,13 +39,46 @@ class Cobra {
   }
 
   calcularFitness() {
-    const comidaDistancia = this.comidaDistancia(); // Cr
-    this.fitness = (1000 / (comidaDistancia + 1)).toFixed();
-    // const fitness = this.vezesQueSeAlimentou * 5;
-    // const fitness = this.tempoDeVida + this.vezesQueSeAlimentou * 0.1;
-    // console.log(fitness);
-    return this.fitness;
+    let fitness = this.vezesQueSeAlimentou * 1000;
+
+    // Penaliza loops: quanto mais movimentos por comida, pior
+    const eficiencia = this.vezesQueSeAlimentou / (this.totalMovimentos + 1);
+    fitness += eficiencia * 500;
+
+    // Penaliza cobras que repetem posições (loops)
+    const posicoesUnicas = new Set(
+      this.ultimasPosicoes.map((p) => `${p.x},${p.y}`)
+    ).size;
+    const taxaRepeticao = 1 - posicoesUnicas / this.ultimasPosicoes.length;
+    fitness -= taxaRepeticao * 1000;
+
+    return max(fitness, 0); // Evita fitness negativo
   }
+
+  // calcularFitness() {
+  //   let fitness = this.vezesQueSeAlimentou * 1000;
+  //   fitness += this.tempoDeVida * 0.1;
+
+  //   // Penaliza cobras que ficam girando (muitos movimentos sem comer)
+  //   const penalidadeLoop =
+  //     this.totalMovimentos / (this.vezesQueSeAlimentou + 1);
+  //   fitness -= penalidadeLoop * 500;
+
+  //   return Math.abs(fitness);
+  // }
+
+  // calcularFitness() {
+  //   const pesoMovimentos = 8;
+  //   const pesoDistancia = 1;
+  //   const pesoComida = 1000;
+
+  //   const fitness =
+  //     this.vezesQueSeAlimentou * pesoComida +
+  //     this.totalMovimentos * pesoMovimentos -
+  //     this.comidaDistancia() * pesoDistancia;
+
+  //   return Math.abs(fitness);
+  // }
 
   comidaDistancia() {
     const dx = COMIDA.posicao.x - this.direcao.x; // Diferença no eixo X
@@ -50,32 +87,106 @@ class Cobra {
   }
 
   moverComIA() {
+    const cabeca = this.corpo[0];
+    const dx = COMIDA.posicao.x - cabeca.x;
+    const dy = COMIDA.posicao.y - cabeca.y;
+
+    // Se a comida está adjacente, escolhe a direção óbvia
+    if (Math.abs(dx) + Math.abs(dy) === 1) {
+      const direcao = createVector(dx, dy);
+      this.mudarDirecao(direcao);
+      return; // Ignora o resto do código
+    }
+
+    // Caso 2: Detectou loop -> escolhe aleatoriamente
+    if (this.estaEmLoop()) {
+      this.mudarDirecao(this.escapeLoop());
+      return;
+    }
+
     const entradas = this.calcularEntradas();
-    const saida = this.genoma.processarEntradas(entradas);
+    this.genoma.processarEntradas(entradas);
 
-    // console.log("Entradas da IA:", entradas);
-    // console.log("Saída da IA:", saida);
+    // Direções possíveis (cima, baixo, esquerda, direita)
+    const direcoes = [
+      createVector(0, -1), // Cima
+      createVector(0, 1), // Baixo
+      createVector(-1, 0), // Esquerda
+      createVector(1, 0), // Direita
+    ];
 
-    const { x: cobraX, y: cobraY } = this.corpo[0];
-    const { x: comidaX, y: comidaY } = COMIDA.posicao || { x: 0, y: 0 };
+    // Escolhe a direção com menor colisão e maior aproximação da comida
+    let melhorDirecao = this.direcao; // Mantém a atual se não houver melhor
+    let melhorPontuacao = -Infinity;
 
-    // // Determina a direção baseada na saída da IA
-    if (saida <= -0.5)
-      this.mudarDirecao(createVector(0, -1)); // CIMA
-    else if (saida <= 0)
-      this.mudarDirecao(createVector(0, 1)); // BAIXO
-    else if (saida <= 0.5)
-      this.mudarDirecao(createVector(-1, 0)); // ESQUERDA
-    else this.mudarDirecao(createVector(1, 0)); // DIREITA
+    for (const direcao of direcoes) {
+      if (direcao.x === -this.direcao.x && direcao.y === -this.direcao.y)
+        continue; // Evita voltar
+
+      const proximaPos = p5.Vector.add(this.corpo[0], direcao);
+      const distanciaComida = proximaPos.dist(COMIDA.posicao);
+      const colisao = this.verificarColisao(direcao);
+
+      // Pontuação: menor distância + evitar colisões
+      // const pontuacao = this.calcularPontuacao();
+      const pontuacao = -distanciaComida - colisao * 1000;
+
+      if (pontuacao > melhorPontuacao) {
+        melhorPontuacao = pontuacao;
+        melhorDirecao = direcao;
+      }
+    }
+
+    this.mudarDirecao(melhorDirecao);
+    this.totalMovimentos++;
+    this.movimentosDisponiveis -= 0.9;
+  }
+  estaEmLoop() {
+    // Se a posição atual apareceu mais de X vezes na memória, está em loop
+    const posAtual = this.ultimasPosicoes[this.ultimasPosicoes.length - 1];
+    const repeticoes = this.ultimasPosicoes.filter((p) =>
+      p.equals(posAtual)
+    ).length;
+    return repeticoes > 3; // Ajuste esse limite conforme necessário
+  }
+
+  escapeLoop() {
+    // Escolhe uma direção aleatória que não cause colisão
+    const direcoes = [
+      createVector(0, -1),
+      createVector(0, 1),
+      createVector(-1, 0),
+      createVector(1, 0),
+    ];
+    const direcoesValidas = direcoes.filter(
+      (direcao) =>
+        !this.verificarColisao(direcao) &&
+        !(direcao.x === -this.direcao.x && direcao.y === -this.direcao.y)
+    );
+    return direcoesValidas.length > 0
+      ? direcoesValidas[floor(random(direcoesValidas.length))]
+      : this.direcao; // Se não houver saída, mantém a direção (último recurso)
   }
 
   mover() {
+    if (this.movimentosDisponiveis === 0) this.colidiu = true;
     if (this.corpo.length === 0 || this.colidiu) return false;
-
-    this.moverComIA();
 
     let novaCabeca = this.novaCabeca();
     novaCabeca.add(this.direcao);
+
+    // Adiciona à memória e remove posições antigas
+    this.ultimasPosicoes.push(novaCabeca.copy());
+    if (this.ultimasPosicoes.length > this.tamanhoMemoria) {
+      this.ultimasPosicoes.shift();
+    }
+
+    // Verifica se a nova posição já foi visitada recentemente
+    if (this.estaEmLoop()) {
+      this.mudarDirecao(this.escapeLoop()); // Força sair do loop
+    }
+
+    this.moverComIA();
 
     if (this.seColidiuParede(novaCabeca) || this.seColidiuCorpo(novaCabeca)) {
       this.colidiu = true;
@@ -100,26 +211,47 @@ class Cobra {
     }
   }
 
-  calcularPontuacao(comida) {
-    const { x: cobraX, y: cobraY } = this.corpo[0];
-    const { x: comidaX, y: comidaY } = comida;
+  // calcularPontuacao(comida) {
+  //   const { x: cobraX, y: cobraY } = this.corpo[0];
+  //   const { x: comidaX, y: comidaY } = comida;
 
-    // Menor distância até a comida
-    const distancia = dist(cobraX, cobraY, comidaX, comidaY);
+  //   // Menor distância até a comida
+  //   const distancia = dist(cobraX, cobraY, comidaX, comidaY);
 
-    // Pontuação baseada na distância (quanto menor, melhor)
-    this.pontuacao = 1 / (distancia + 1); // Evita divisão por zero
-  }
+  //   // Pontuação baseada na distância (quanto menor, melhor)
+  //   this.pontuacao = 1 / (distancia + 1); // Evita divisão por zero
+  // }
 
   calcularEntradas() {
+    // const entradas = [];
+
+    // const { x: cobraX, y: cobraY } = this.corpo[0];
+    // const { x: comidaX, y: comidaY } = COMIDA.posicao;
+    // // const { x: comidaX, y: comidaY } = COMIDA.posicao || { x: 0, y: 0 };
+
+    // entradas.push(comidaX - cobraX);
+    // entradas.push(comidaY - cobraY);
+
     const entradas = [];
+    const cabeca = this.corpo[0];
 
-    const { x: cobraX, y: cobraY } = this.corpo[0];
-    const { x: comidaX, y: comidaY } = COMIDA.posicao;
-    // const { x: comidaX, y: comidaY } = COMIDA.posicao || { x: 0, y: 0 };
+    // Posição relativa da comida (já existe)
+    entradas.push(COMIDA.posicao.x - cabeca.x); // DX
+    entradas.push(COMIDA.posicao.y - cabeca.y); // DY
 
-    entradas.push(comidaX - cobraX);
-    entradas.push(comidaY - cobraY);
+    // Nova: Verifica se a comida está em cada direção adjacente (1 ou 0)
+    entradas.push(
+      COMIDA.posicao.x === cabeca.x && COMIDA.posicao.y === cabeca.y - 1 ? 1 : 0
+    ); // Comida ACIMA
+    entradas.push(
+      COMIDA.posicao.x === cabeca.x && COMIDA.posicao.y === cabeca.y + 1 ? 1 : 0
+    ); // Comida ABAIXO
+    entradas.push(
+      COMIDA.posicao.x === cabeca.x - 1 && COMIDA.posicao.y === cabeca.y ? 1 : 0
+    ); // Comida ESQUERDA
+    entradas.push(
+      COMIDA.posicao.x === cabeca.x + 1 && COMIDA.posicao.y === cabeca.y ? 1 : 0
+    ); // Comida DIREITA
 
     // Obstáculos em cada direção
     entradas.push(this.verificarColisao(createVector(0, -1))); // Obstáculo acima
@@ -129,25 +261,6 @@ class Cobra {
 
     return entradas;
   }
-
-  // calcularEntradas(comida) {
-  //   const novaCabeca = this.novaCabeca();
-  //   const distancias = {
-  //     cima: novaCabeca.y,
-  //     baixo: ALTURA / this.pixelCobra - novaCabeca.y - 1,
-  //     esquerda: novaCabeca.x,
-  //     direita: LARGURA / this.pixelCobra - novaCabeca.x - 1,
-  //   };
-
-  //   return [
-  //     comida.posicao.x - novaCabeca.x,
-  //     comida.posicao.y - novaCabeca.y,
-  //     distancias.cima,
-  //     distancias.baixo,
-  //     distancias.esquerda,
-  //     distancias.direita,
-  //   ];
-  // }
 
   verificarColisao(direcao) {
     const proximaPosicao = p5.Vector.add(this.corpo[0], direcao);
@@ -212,6 +325,7 @@ class Cobra {
     this.comprimento++;
     COMIDA.gerarComidaAleatoria();
     COMIDA.comidaGerada++;
+    this.movimentosDisponiveis += 1;
   }
 
   desenhar() {

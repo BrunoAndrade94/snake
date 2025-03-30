@@ -82,20 +82,16 @@ class Populacao {
 
     this.avaliarAptidao();
     const melhor = this.cobras.sort((a, b) => b.fitness - a.fitness);
-    // const melhor = this.cobras.sort(
-    //   (a, b) => b.vezesQueSeAlimentou - a.vezesQueSeAlimentou
-    // );
-    // console.log(melhor);
+    // this.cobras.sort((a, b) => b.vezesQueSeAlimentou - a.vezesQueSeAlimentou);
+    // console.log(this.cobras.sort((a, b) => b.fitness - a.fitness));
 
-    this.maiorFit = melhor[0].fitness;
-    this.menorFit = melhor[melhor.length - 1].fitness;
     const novaPopulacao = [];
 
     // Mantém os melhores indivíduos para a próxima geração (elitismo)
     novaPopulacao.push(melhor[0]); // Mantenha o melhor indivíduo (elitismo)
-    // novaPopulacao.push(this.cobras[1]); // Opcional: mantenha os 2 melhores
+    novaPopulacao.push(this.cobras[1]); // Opcional: mantenha os 2 melhores
 
-    for (let i = 0; i < this.cobras.length - 1; i++) {
+    for (let i = 0; i < this.cobras.length - 2; i++) {
       // const mae = melhor[0];
       // const pai = melhor[1];
       const pai = this.selecionarPais();
@@ -103,7 +99,7 @@ class Populacao {
       const filhoGenoma = pai.genoma.cruzar(mae.genoma);
       filhoGenoma.mutar(this.taxaMutacao);
       novaPopulacao.push(new Cobra(filhoGenoma));
-      console.log(filhoGenoma);
+      // console.log(filhoGenoma);
     }
 
     this.cobras = novaPopulacao;

@@ -19,7 +19,7 @@ class Painel {
     // text(`FIT ATUAL: ${POPULACAO.maiorFit}`, 10, 150);
 
     textSize(25);
-    text(`FIT MAIOR: ${POPULACAO.maiorFit}`, 10, 180);
+    text(`MOV DISP: ${COBRAS.movimentosDisponiveis}`, 10, 180);
 
     textSize(25);
     text(`FIT MENOR: ${POPULACAO.menorFit}`, 10, 210);

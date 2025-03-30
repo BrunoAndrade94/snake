@@ -8,7 +8,7 @@ let FRAME_RATE = 1000;
 
 let PAINEL;
 let DELTA_TIME, IA;
-let AMBIENTE, COMIDA;
+let AMBIENTE, COMIDA, COMIDA1;
 
 let COBRA;
 let COBRAS = [];
@@ -22,4 +22,4 @@ const TAXA_DE_MUTACAO = 0.1;
 
 let GENOMA;
 const TAMANHO_GENOMA = 6;
-const TAXA_MUTACAO = 0.08;
+const TAXA_MUTACAO = 0.5;

@@ -1,0 +1,25 @@
+const LARGURA = 500;
+const ALTURA = 500;
+const MEIA_LARGURA = LARGURA / 2;
+const MEIA_ALTURA = ALTURA / 2;
+
+const COR_DE_FUNDO = 0;
+let FRAME_RATE = 1000;
+
+let PAINEL;
+let DELTA_TIME, IA;
+let AMBIENTE, COMIDA;
+
+let COBRA;
+let COBRAS = [];
+const PIXEL_COBRA = 20;
+const COMPRIMENTO_COBRA = 5;
+const VELOCIDADE_ADICIONAL = 2.5;
+
+let POPULACAO;
+const POPULACAO_INICIAL = 10;
+const TAXA_DE_MUTACAO = 0.1;
+
+let GENOMA;
+const TAMANHO_GENOMA = 6;
+const TAXA_MUTACAO = 0.08;
